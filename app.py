@@ -1,6 +1,6 @@
 import pymongo as pymongo
 from bson import json_util
-from flask import Flask, jsonify, request
+from flask import Flask, request
 
 app = Flask(__name__)
 
@@ -15,9 +15,8 @@ def get_bmc_data():
 
 @app.route('/api/card/container')
 def get_container():
-    user_id = request.args.get("user_id")
-    result = db.bmc_content.find_one({"userid": user_id})
-    print(result)
+    username = request.args.get("username")
+    result = db.bmc_users.find_one({"username": username })
     return result["container_id"]
 
 
@@ -27,11 +26,11 @@ def get_card():
     card_id = request.args.get("card_id", None)
 
     if card_id:
-        query = db.bmc_content.find_one({f"bmc_cards.{card_id}.card_id": card_id})
-        result = query["bmc_cards"][card_id]
+        query = db.bmc_content.find_one({"card_id": card_id})
+        result = query
     else:
-        query = db.bmc_content.find_one({"container_id": container})
-        result = query["bmc_cards"]
+        query = db.bmc_content.find({"container_id": container})
+        result = query
     return json_util.dumps(result)
 
 

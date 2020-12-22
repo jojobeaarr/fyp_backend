@@ -1,8 +1,11 @@
 import pymongo as pymongo
 from bson import json_util
 from flask import Flask, request
+from flask_cors import CORS, cross_origin
 
 app = Flask(__name__)
+CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 
 client = pymongo.MongoClient("mongodb+srv://dummy_jojo:m4AQAcwgzq4PejKG@cluster0.eglly.mongodb.net/alto_touch?retryWrites=true&w=majority")
 db = client.alto_touch
@@ -14,13 +17,15 @@ def get_bmc_data():
 
 
 @app.route('/api/card/container')
+@cross_origin()
 def get_container():
     username = request.args.get("username")
     result = db.bmc_users.find_one({"username": username })
-    return result["container_id"]
+    return json_util.dumps(result["container_id"])
 
 
 @app.route('/api/card/get')
+@cross_origin()
 def get_card():
     container = request.args.get("container_id")
     card_id = request.args.get("card_id", None)
@@ -35,6 +40,7 @@ def get_card():
 
 
 @app.route('/api/card/update', methods=['POST'])
+@cross_origin()
 def update_card():
     card_id = request.json["card_id"]
     card_content = request.json["data"]

@@ -43,10 +43,9 @@ def get_card():
 @cross_origin()
 def update_card():
     card_id = request.json["card_id"]
-    card_content = request.json["data"]
-    print(card_content)
-    db.bmc_content.update({f"bmc_cards.{card_id}.card_id": card_id}, {"$set": {f"bmc_cards.{card_id}.content": card_content}})
-    card = db.bmc_content.find_one({f"bmc_cards.{card_id}.card_id": card_id})
+    card_content = request.json["card_content"]
+    db.bmc_content.update({"card_id": card_id}, {"$set": {"content": card_content}})
+    card = db.bmc_content.find_one({"card_id": card_id})
     print(card)
     return "Success"
 

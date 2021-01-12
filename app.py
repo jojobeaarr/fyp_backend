@@ -1,12 +1,11 @@
 import hashlib
 import uuid
-
 from flask_mongoengine import MongoEngine
 import pymongo as pymongo
 from bson import json_util
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
-from flask_login import login_manager
+from flask_api import status
 
 app = Flask(__name__)
 CORS(app)
@@ -88,7 +87,6 @@ def update_card():
     card_id = request.json["card_id"]
     card_content = request.json["card_content"]
     db.bmc_content.update({"card_id": card_id}, {"$set": {"content": card_content}})
-    card = db.bmc_content.find_one({"card_id": card_id})
     return "Success"
 
 
@@ -116,16 +114,20 @@ def user_exist():
         return json_util.dumps("False")
     return json_util.dumps("True")
 
-#FIX THIS
+
 @app.route('/api/user/login', methods=['GET'])
 def query_records():
-    email = request.args.get('email')
-    password = request.args.get('password')
-    user = User.objects(email=email)
-    if not user:
-        return json_util.dumps({'error': 'data not found'})
+    email = request.form.get('email')
+    password = request.form.get('password')
+    user = User.objects(email=email).first()
+    if user is None:
+        return "error: data not found", status.HTTP_404_NOT_FOUND
     else:
-        return json_util.dumps(user.to_json())
+        hashed_password = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), user.salt, user.iter)
+        if hashed_password == user.hash:
+            return "Success"
+        else:
+            return "Fail", status.HTTP_401_UNAUTHORIZED
 
 
 if __name__ == '__main__':

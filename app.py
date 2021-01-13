@@ -1,20 +1,27 @@
+import datetime
 import hashlib
 import uuid
+import jwt
 from flask_mongoengine import MongoEngine
 import pymongo as pymongo
 from bson import json_util
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
-from flask_api import status
+import secrets
+import os
+
+os.environ['SECRET_KEY'] = secrets.token_urlsafe(16)
+SECRET_KEY = os.getenv('SECRET_KEY')
+DB_URI = "mongodb+srv://dummy_jojo:m4AQAcwgzq4PejKG@cluster0.eglly.mongodb.net/alto_touch?retryWrites=true&w=majority"
+
 
 app = Flask(__name__)
 CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
-DB_URI = "mongodb+srv://dummy_jojo:m4AQAcwgzq4PejKG@cluster0.eglly.mongodb.net/alto_touch?retryWrites=true&w=majority"
-
+app.config['SECRET_KEY'] = SECRET_KEY
 app.config["MONGODB_HOST"] = DB_URI
-database = MongoEngine(app)
 
+database = MongoEngine(app)
 client = pymongo.MongoClient(DB_URI)
 db = client.alto_touch
 
@@ -46,6 +53,39 @@ class User(database.Document):
         """False, as anonymous users aren't supported."""
         return False
 
+    def encode_auth_token(self, email):
+        """
+        Generates the Auth Token
+        :return: string
+        """
+        try:
+            payload = {
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=5),
+                'iat': datetime.datetime.utcnow(),
+                'sub': email
+            }
+            return jwt.encode(
+                payload,
+                app.config.get('SECRET_KEY'),
+                algorithm='HS256'
+            )
+        except Exception as e:
+            return e
+
+    def decode_auth_token(self, auth_token):
+        """
+        Decodes the auth token
+        :param auth_token:
+        :return: integer|string
+        """
+        try:
+            payload = jwt.decode(auth_token, app.config.get('SECRET_KEY'))
+            return payload['sub']
+        except jwt.ExpiredSignatureError:
+            return 'Signature expired. Please log in again.'
+        except jwt.InvalidTokenError:
+            return 'Invalid token. Please log in again.'
+
 
 def create_template(container_id):
     for card in template_cards:
@@ -53,17 +93,27 @@ def create_template(container_id):
         db.bmc_content.insert({"container_id": container_id, "card_id": card_id,"title": card, "content": []})
 
 
-@app.route('/')
-def get_bmc_data():
-    return json_util.dumps(db.bmc_content.find_one())
+# @app.route('/')
+# def get_bmc_data():
+#     return json_util.dumps(db.bmc_content.find_one())
 
 
 @app.route('/api/card/container')
 @cross_origin()
 def get_container():
-    email = request.args.get("email")
-    result = User.objects.get(email=email)
-    return json_util.dumps(result.container)
+    #fix this
+    # get the auth token
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        auth_token = auth_header.split(" ")[1]
+    else:
+        auth_token = ''
+    if auth_token:
+        email = User().decode_auth_token(auth_token)
+        result = User.objects.get(email=email)
+        return json_util.dumps(result.container)
+    else:
+        return json_util.dumps("Fail")
 
 
 @app.route('/api/card/get')
@@ -84,6 +134,8 @@ def get_card():
 @app.route('/api/card/update', methods=['POST'])
 @cross_origin()
 def update_card():
+    auth_token = request.headers.get('Authorization')
+    #do something with this
     card_id = request.json["card_id"]
     card_content = request.json["card_content"]
     db.bmc_content.update({"card_id": card_id}, {"$set": {"content": card_content}})
@@ -101,7 +153,8 @@ def create_user():
     user = User(name=record['name'], email=record['email'], container=container_id, salt=salt, hash=hash_pass, iter=iter)
     user.save()
     #create_template(container_id)
-    return json_util.dumps("Success")
+    auth_token = user.encode_auth_token(record['email'])
+    return json_util.dumps(auth_token)
 
 
 @app.route('/api/user/exist', methods=['GET'])
@@ -115,19 +168,21 @@ def user_exist():
     return json_util.dumps("True")
 
 
-@app.route('/api/user/login', methods=['GET'])
+@app.route('/api/user/login', methods=['POST'])
 def query_records():
     email = request.form.get('email')
     password = request.form.get('password')
     user = User.objects(email=email).first()
     if user is None:
-        return "error: data not found", status.HTTP_404_NOT_FOUND
+        return json_util.dumps("error: data not found")
     else:
         hashed_password = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), user.salt, user.iter)
         if hashed_password == user.hash:
-            return "Success"
+            auth_token = user.encode_auth_token(email)
+            print(auth_token)
+            return json_util.dumps(auth_token)
         else:
-            return "Fail", status.HTTP_401_UNAUTHORIZED
+            return json_util.dumps("Fail")
 
 
 if __name__ == '__main__':

@@ -60,7 +60,7 @@ class User(database.Document):
         """
         try:
             payload = {
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=5),
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=60),
                 'iat': datetime.datetime.utcnow(),
                 'sub': email
             }
@@ -79,7 +79,7 @@ class User(database.Document):
         :return: integer|string
         """
         try:
-            payload = jwt.decode(auth_token, app.config.get('SECRET_KEY'))
+            payload = jwt.decode(auth_token, app.config.get('SECRET_KEY'), algorithms="HS256")
             return payload['sub']
         except jwt.ExpiredSignatureError:
             return 'Signature expired. Please log in again.'
@@ -103,13 +103,13 @@ def create_template(container_id):
 def get_container():
     #fix this
     # get the auth token
-    auth_header = request.headers.get('Authorization')
-    if auth_header:
-        auth_token = auth_header.split(" ")[1]
-    else:
+    auth_token = request.headers.get('Authorization')
+    #print(auth_token)
+    if not auth_token:
         auth_token = ''
     if auth_token:
         email = User().decode_auth_token(auth_token)
+        print(email)
         result = User.objects.get(email=email)
         return json_util.dumps(result.container)
     else:
@@ -152,7 +152,7 @@ def create_user():
     hash_pass = hashlib.pbkdf2_hmac('sha256', record['password'].encode('utf-8'), salt, iter)
     user = User(name=record['name'], email=record['email'], container=container_id, salt=salt, hash=hash_pass, iter=iter)
     user.save()
-    #create_template(container_id)
+    create_template(container_id)
     auth_token = user.encode_auth_token(record['email'])
     return json_util.dumps(auth_token)
 
@@ -179,7 +179,6 @@ def query_records():
         hashed_password = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), user.salt, user.iter)
         if hashed_password == user.hash:
             auth_token = user.encode_auth_token(email)
-            print(auth_token)
             return json_util.dumps(auth_token)
         else:
             return json_util.dumps("Fail")

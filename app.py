@@ -5,7 +5,7 @@ import jwt
 from flask_mongoengine import MongoEngine
 import pymongo as pymongo
 from bson import json_util
-from flask import Flask, request
+from flask import Flask, request, Response
 from flask_cors import CORS, cross_origin
 import secrets
 import os
@@ -60,7 +60,7 @@ class User(database.Document):
         """
         try:
             payload = {
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=60),
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=86400),
                 'iat': datetime.datetime.utcnow(),
                 'sub': email
             }
@@ -108,10 +108,14 @@ def get_container():
     if not auth_token:
         auth_token = ''
     if auth_token:
-        email = User().decode_auth_token(auth_token)
-        print(email)
-        result = User.objects.get(email=email)
-        return json_util.dumps(result.container)
+        try:
+            email = User().decode_auth_token(auth_token)
+            print(email)
+            result = User.objects.get(email=email)
+            return json_util.dumps(result.container)
+        except Exception:
+            return Response("", status=401)
+
     else:
         return json_util.dumps("Fail")
 

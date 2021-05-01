@@ -11,8 +11,10 @@ import secrets
 import os
 
 os.environ['SECRET_KEY'] = secrets.token_urlsafe(16)
+USER = os.getenv('DBUSER')
+PASS = os.getenv("DBPASS")
 SECRET_KEY = os.getenv('SECRET_KEY')
-DB_URI = "mongodb+srv://dummy_jojo:m4AQAcwgzq4PejKG@cluster0.eglly.mongodb.net/alto_touch?retryWrites=true&w=majority"
+DB_URI = f"mongodb+srv://{USER}:{PASS}@cluster0.eglly.mongodb.net/alto_touch?retryWrites=true&w=majority"
 
 
 app = Flask(__name__)
@@ -101,7 +103,6 @@ def create_template(container_id):
 @app.route('/api/card/container')
 @cross_origin()
 def get_container():
-    #fix this
     # get the auth token
     auth_token = request.headers.get('Authorization')
     #print(auth_token)
